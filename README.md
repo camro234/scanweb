@@ -11,8 +11,11 @@ The dictionaries used and the techniques used are those that I found consistentl
 one that isn't found using these techniques, I'll change the script so that it does work next time.
 
 It uses ffuf and gobuster for the various techniques
+
 gobuster for vhost scanning (I like it for that)
+
 ffuf for all the rest (I tried several tools and techniques but personally like this one the best)
+
 Dictionaries are all from SecLists - https://github.com/danielmiessler/SecLists
 
 ## usage examples:
