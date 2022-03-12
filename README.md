@@ -27,10 +27,13 @@ Dictionaries are all from SecLists - https://github.com/danielmiessler/SecLists
 
 My typical runs:
 
-    # first scan (use the appropriate language - this example is php but could be aspx instead for example):
+    # first scan (use the appropriate language - this example is php but could be aspx instead for example)
+    # note - this also does vhost scanning (only does that when you search by IP address):
     ./scanweb.sh -i <ip> --host <host>.htb --usehost n -e .php,.html,.txt --usehttps n -t 200 --outdir ./results
+    
     # if find vhosts from above, then also try scanning those after:
     ./scanweb.sh -i <ip> --host myvhost.<host>.htb --usehost y -e .php,.html,.txt --usehttps n -t 200 --outdir ./results
+    
     # if find subdir that you want to scan:
     ./scanweb.sh -i <ip> --host <host>.htb --usehost n -e .php,.html,.txt --usehttps n -t 200 -d mysubdir --outdir ./results
 
