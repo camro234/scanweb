@@ -141,11 +141,10 @@ ffuf -u $URL -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/IIS.fuzz.txt -t $THREA
 echo -e "Starting step 2 - big"
 ffuf -u $URL -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/big.txt -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._2_big -of md -timeout 5 -ic
 
-echo -e "Starting step 3 - medium"
-ffuf -u $URL -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/directory-list-2.3-medium.txt -e $EXTENSIONS -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._3_medium -of md -timeout 5 -ic
-
-
-echo -e "Starting step 4 - small"
+echo -e "Starting step 3 - small"
 ffuf -u $URL -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small -of md -timeout 5 -ic
+
+echo -e "Starting step 4 - medium"
+ffuf -u $URL -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/directory-list-2.3-medium.txt -e $EXTENSIONS -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._3_medium -of md -timeout 5 -ic
 
 echo -e "Done!"
