@@ -11,12 +11,12 @@ echo -e "\e[0;33mscanweb web scanning script\n\n\e[m"
 SHOWUSAGE="n"
 
 while [ $# -gt 0 ]; do
-  if [[ $1 == *"--"* ]]; then
+  if [[ $1 == "--"* ]]; then
     param="${1/--/}"
     declare $param="$2" 2>/dev/null
   fi
 
-  if [[ $1 == *"-"* ]]; then
+  if [[ $1 == "-"* ]]; then
     param="${1/-/}"
     declare $param="$2" 2>/dev/null
   fi
