@@ -139,10 +139,33 @@ echo -e "Starting step 1 - IIS"
 ffuf -u $URL -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/IIS.fuzz.txt -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._1_iis -of md -timeout 5 -ic
 
 echo -e "Starting step 2 - big"
-ffuf -u $URL -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/big.txt -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._2_big -of md -timeout 5 -ic
+ffuf -u $URL -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/big.txt -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._2_big -of md -timeout 5 -ic -recursion -recursion-depth 1
 
 echo -e "Starting step 3 - small"
 ffuf -u $URL -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small -of md -timeout 5 -ic
+
+DIRS_FOUND=$(cat $OUTPUTDIR/ffuf.none._2_big| grep '/ |' | awk -F'|' '{print $4}')
+NUM=0
+for DIR_FOUND in $DIRS_FOUND
+do
+  ((NUM++))
+  DIR_FOUND+="FUZZ"
+  if [ $ISHTTPS = 'y' ]; then
+    DIR_FOUND="$DIR_FOUND -k"
+  fi
+
+  if [ ! -z $PROXY ]; then
+    DIR_FOUND="$DIR_FOUND -x $PROXY"
+  fi
+
+  if [ ! -z $REPLAYPROXY ]; then
+    DIR_FOUND="$DIR_FOUND -replay-proxy $REPLAYPROXY"
+  fi
+
+  echo -e "Starting step 3 - small - on found dirs"
+  ffuf -u $DIR_FOUND -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$NUM -of md -timeout 5 -ic
+done
+
 
 echo -e "Starting step 4 - medium"
 ffuf -u $URL -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/directory-list-2.3-medium.txt -e $EXTENSIONS -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._3_medium -of md -timeout 5 -ic
