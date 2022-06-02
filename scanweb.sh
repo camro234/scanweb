@@ -136,15 +136,15 @@ if [ $USESUBDIR = 'y' ]; then
 fi
 
 echo -e "Starting step 1 - IIS"
-ffuf -u $URL -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/IIS.fuzz.txt -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._1_iis -of md -timeout 5 -ic
+sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/IIS.fuzz.txt | uniq -i | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._1_iis -of md -timeout 5 -ic
 
 echo -e "Starting step 2 - big"
-ffuf -u $URL -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/big.txt -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._2_big -of md -timeout 5 -ic -recursion -recursion-depth 1
+sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/big.txt | uniq -i | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._2_big -of md -timeout 5 -ic -recursion -recursion-depth 1
 
 echo -e "Starting step 3 - small"
-ffuf -u $URL -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small -of md -timeout 5 -ic
+sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt | uniq -i | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small -of md -timeout 5 -ic
 
-DIRS_FOUND=$(cat $OUTPUTDIR/ffuf.none._2_big| grep '/ |' | awk -F'|' '{print $4}')
+DIRS_FOUND=$(cat $OUTPUTDIR/ffuf.$HOSTNAME._2_big| grep '/ |' | awk -F'|' '{print $4}')
 NUM=0
 for DIR_FOUND in $DIRS_FOUND
 do
@@ -163,11 +163,25 @@ do
   fi
 
   echo -e "Starting step 3 - small - on found dirs"
-  ffuf -u $DIR_FOUND -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$NUM -of md -timeout 5 -ic
+  sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt | uniq -i | ffuf -u $DIR_FOUND -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$NUM -of md -timeout 5 -ic
 done
 
 
 echo -e "Starting step 4 - medium"
-ffuf -u $URL -w $CUSTOMSECLISTSPATH/Discovery/Web-Content/directory-list-2.3-medium.txt -e $EXTENSIONS -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._3_medium -of md -timeout 5 -ic
+sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/directory-list-2.3-medium.txt | uniq -i | ffuf -u $URL -w - -e $EXTENSIONS -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._3_medium -of md -timeout 5 -ic
+
+echo -e "Combining results for easy reading"
+echo "" > $OUTPUTDIR/ffuf.staging.$HOSTNAME
+cat $OUTPUTDIR/ffuf.$HOSTNAME.* >> $OUTPUTDIR/ffuf.staging.$HOSTNAME
+cat $OUTPUTDIR/ffuf.staging.$HOSTNAME | grep '| http' | awk -F'| ' '{print $6}' | sort | uniq -i | grep -v '/.$' > $OUTPUTDIR/ffuf.staging2.$HOSTNAME
+echo "" > $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+if [ $USEHOSTNAME = 'n' ] && [ $USESUBDIR = 'n' ]; then
+  echo -e "\e[0;35mVHosts found:\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+  cat $OUTPUTDIR/gobuster_vhosts >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+  echo -e "\n\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+fi
+echo -e "\e[0;35mPaths found:\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+cat $OUTPUTDIR/ffuf.staging2.$HOSTNAME >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
 
 echo -e "Done!"
+echo -e "Review the completed report with:\nless $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt"
