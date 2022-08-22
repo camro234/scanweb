@@ -134,6 +134,7 @@ if [ $USESUBDIR = 'y' ]; then
   # hostname from here is only used for filename, so append subdir if we are using that
   HOSTNAME="$HOSTNAME.$SUBDIR"
 fi
+HOSTNAME=$(echo "${HOSTNAME}" | sed 's/\//\./g')
 
 echo -e "Starting step 1 - IIS"
 sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/IIS.fuzz.txt | uniq -i | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._1_iis -of md -timeout 5 -ic
