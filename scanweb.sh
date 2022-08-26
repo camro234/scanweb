@@ -104,17 +104,25 @@ if [ $USESUBDIR = 'y' ]; then
   if [ -z $PORT ]; then
     URL="$HTTP://$IP/$SUBDIR/FUZZ"
     MACHINENAMEURL="$HTTP://$IP/$SUBDIR/$MACHINENAMEDIR/FUZZ"
+    URLONITSOWN="$HTTP://$IP/$SUBDIR"
+    MACHINENAMEURLONITSOWN="$HTTP://$IP/$SUBDIR/$MACHINENAMEDIR"
   else
     URL="$HTTP://$IP:$PORT/$SUBDIR/FUZZ"
     MACHINENAMEURL="$HTTP://$IP:$PORT/$SUBDIR/$MACHINENAMEDIR/FUZZ"
+    URLONITSOWN="$HTTP://$IP:$PORT/$SUBDIR"
+    MACHINENAMEURLONITSOWN="$HTTP://$IP:$PORT/$SUBDIR/$MACHINENAMEDIR"
   fi
 else
   if [ -z $PORT ]; then
     URL="$HTTP://$IP/FUZZ"
     MACHINENAMEURL="$HTTP://$IP/$MACHINENAMEDIR/FUZZ"
+    URLONITSOWN="$HTTP://$IP"
+    MACHINENAMEURLONITSOWN="$HTTP://$IP/$MACHINENAMEDIR"
   else
     URL="$HTTP://$IP:$PORT/FUZZ"
     MACHINENAMEURL="$HTTP://$IP:$PORT/$MACHINENAMEDIR/FUZZ"
+    URLONITSOWN="$HTTP://$IP:$PORT"
+    MACHINENAMEURLONITSOWN="$HTTP://$IP:$PORT/$MACHINENAMEDIR"
   fi
 fi
 
@@ -158,6 +166,7 @@ NUM=0
 for DIR_FOUND in $DIRS_FOUND
 do
   ((NUM++))
+  DIRFOUNDONITSOWN="$DIR_FOUND"
   DIR_FOUND+="FUZZ"
   if [ $ISHTTPS = 'y' ]; then
     DIR_FOUND="$DIR_FOUND -k"
@@ -173,10 +182,26 @@ do
 
   echo -e "Starting step 3 - small - on found dirs"
   sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt | uniq -i | ffuf -u $DIR_FOUND -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$NUM -of md -timeout 5 -ic
+
+  echo -e "Quick check for wordpress on found dirs"
+  if curl --output /dev/null --silent --head --fail "$DIRFOUNDONITSOWN/wp-login.php"; then
+    echo "Found wordpress on $DIRFOUNDONITSOWN"
+    echo "  | $DIRFOUNDONITSOWN/wp-login.php | $DIRFOUNDONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.dirfoundonitsown_$NUM
+  fi
 done
 
 echo -e "Starting step 3 - small - on machine name as a dir"
 sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt | uniq -i | ffuf -u $MACHINENAMEURL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$MACHINENAMEURL -of md -timeout 5 -ic
+
+echo -e "Quick check for wordpress"
+if curl --output /dev/null --silent --head --fail "$URLONITSOWN/wp-login.php"; then
+  echo "Found wordpress on $URLONITSOWN"
+  echo "  | $URLONITSOWN/wp-login.php | $URLONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.urlonitsown
+fi
+if curl --output /dev/null --silent --head --fail "$MACHINENAMEURLONITSOWN/wp-login.php"; then
+  echo "Found wordpress on $MACHINENAMEURLONITSOWN"
+  echo "  | $MACHINENAMEURLONITSOWN/wp-login.php | $MACHINENAMEURLONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.machinenameurlonitsown
+fi
 
 echo -e "Starting step 4 - medium"
 sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/directory-list-2.3-medium.txt | uniq -i | ffuf -u $URL -w - -e $EXTENSIONS -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._3_medium -of md -timeout 5 -ic
