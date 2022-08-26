@@ -59,6 +59,7 @@ OUTPUTDIR=${outdir%/}
 PORT=$port
 PROXY=$proxyurl
 REPLAYPROXY=$replayproxyurl
+MACHINENAMEDIR=$(echo "$HOSTNAME" | cut -d "." -f 1)
 
 if [[ -z $IP || -z $HOSTNAME || -z $USEHOSTNAME || -z $EXTENSIONS || -z $ISHTTPS || -z $THREADS || -z $OUTPUTDIR || $SHOWUSAGE = "y" ]]; then
 	echo -e "usage:\n\t$0 -i <ip-address> --host <hostname> --usehost <use-hostname-instead-of-ip> -e <file-extensions> --usehttps <is-https> -t <num-threads> --outdir <output-file-dir> [-d <sub-dir>] [--customsecpath <custom-seclists-path>] [--port <custom-port>] [--proxyurl <proxy-url> (For example: http://127.0.0.1:8080 or socks5://127.0.0.1:8080)] [--replayproxyurl <replay-proxy-url>]"
@@ -102,27 +103,34 @@ fi
 if [ $USESUBDIR = 'y' ]; then
   if [ -z $PORT ]; then
     URL="$HTTP://$IP/$SUBDIR/FUZZ"
+    MACHINENAMEURL="$HTTP://$IP/$SUBDIR/$MACHINENAMEDIR/FUZZ"
   else
     URL="$HTTP://$IP:$PORT/$SUBDIR/FUZZ"
+    MACHINENAMEURL="$HTTP://$IP:$PORT/$SUBDIR/$MACHINENAMEDIR/FUZZ"
   fi
 else
   if [ -z $PORT ]; then
     URL="$HTTP://$IP/FUZZ"
+    MACHINENAMEURL="$HTTP://$IP/$MACHINENAMEDIR/FUZZ"
   else
     URL="$HTTP://$IP:$PORT/FUZZ"
+    MACHINENAMEURL="$HTTP://$IP:$PORT/$MACHINENAMEDIR/FUZZ"
   fi
 fi
 
 if [ $ISHTTPS = 'y' ]; then
   URL="$URL -k"
+  MACHINENAMEURL="$MACHINENAMEURL -k"
 fi
 
 if [ ! -z $PROXY ]; then
   URL="$URL -x $PROXY"
+  MACHINENAMEURL="$MACHINENAMEURL -x $PROXY"
 fi
 
 if [ ! -z $REPLAYPROXY ]; then
   URL="$URL -replay-proxy $REPLAYPROXY"
+  MACHINENAMEURL="$MACHINENAMEURL -replay-proxy $REPLAYPROXY"
 fi
 
 if [ $USEHOSTNAME = 'n' ]; then
@@ -167,6 +175,8 @@ do
   sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt | uniq -i | ffuf -u $DIR_FOUND -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$NUM -of md -timeout 5 -ic
 done
 
+echo -e "Starting step 3 - small - on machine name as a dir"
+sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt | uniq -i | ffuf -u $MACHINENAMEURL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$MACHINENAMEURL -of md -timeout 5 -ic
 
 echo -e "Starting step 4 - medium"
 sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/directory-list-2.3-medium.txt | uniq -i | ffuf -u $URL -w - -e $EXTENSIONS -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._3_medium -of md -timeout 5 -ic
