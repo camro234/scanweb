@@ -158,8 +158,48 @@ sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/IIS.fuzz.txt | uniq -i | ffuf 
 echo -e "Starting step 2 - big"
 sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/big.txt | uniq -i | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._2_big -of md -timeout 5 -ic -recursion -recursion-depth 1
 
+echo "$MACHINENAMEDIR" > /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.html" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.htm" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.asp" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.aspx" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.php" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.php5" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.php3" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.txt" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.rtf" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.cf" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.pdf" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.xhtml" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.doc" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.docx" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.xls" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.xlsx" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.xml" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.json" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.pl" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.cgi" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.shtml" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.py" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.zip" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.gz" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.tar" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.png" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.jpg" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.jpeg" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.avi" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.wmv" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.bmp" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.csv" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.7z" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.rar" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.arj" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.tar.gz" >> /tmp/raft-small-files-mod.txt
+echo "$MACHINENAMEDIR.z" >> /tmp/raft-small-files-mod.txt
+sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt | uniq -i >> /tmp/raft-small-files-mod.txt
+
 echo -e "Starting step 3 - small"
-sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt | uniq -i | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small -of md -timeout 5 -ic
+cat /tmp/raft-small-files-mod.txt | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small -of md -timeout 5 -ic
 
 DIRS_FOUND=$(cat $OUTPUTDIR/ffuf.$HOSTNAME._2_big| grep '/ |' | awk -F'|' '{print $4}')
 NUM=0
@@ -181,7 +221,7 @@ do
   fi
 
   echo -e "Starting step 3 - small - on found dirs"
-  sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt | uniq -i | ffuf -u $DIR_FOUND -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$NUM -of md -timeout 5 -ic
+  cat /tmp/raft-small-files-mod.txt | ffuf -u $DIR_FOUND -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$NUM -of md -timeout 5 -ic
 
   echo -e "Quick check for wordpress on found dirs"
   if curl --output /dev/null --silent --head --fail "$DIRFOUNDONITSOWN/wp-login.php"; then
@@ -191,7 +231,7 @@ do
 done
 
 echo -e "Starting step 3 - small - on machine name as a dir"
-sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt | uniq -i | ffuf -u $MACHINENAMEURL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$MACHINENAMEURL -of md -timeout 5 -ic
+cat /tmp/raft-small-files-mod.txt | ffuf -u $MACHINENAMEURL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$MACHINENAMEURL -of md -timeout 5 -ic
 
 echo -e "Quick check for wordpress"
 if curl --output /dev/null --silent --head --fail "$URLONITSOWN/wp-login.php"; then
