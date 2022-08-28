@@ -234,6 +234,8 @@ echo -e "Starting step 3 - small - on machine name as a dir"
 cat /tmp/raft-small-files-mod.txt | ffuf -u $MACHINENAMEURL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$MACHINENAMEURL -of md -timeout 5 -ic
 
 echo -e "Quick check for wordpress"
+echo -e "Sleep for one minute as previous scanning can sometimes cause failures now"
+sleep 60
 if curl --output /dev/null --silent --head --fail "$URLONITSOWN/wp-login.php"; then
   echo "Found wordpress on $URLONITSOWN"
   echo "  | $URLONITSOWN/wp-login.php | $URLONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.urlonitsown
