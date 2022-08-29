@@ -231,7 +231,7 @@ do
 done
 
 echo -e "Starting step 3 - small - on machine name as a dir"
-cat /tmp/raft-small-files-mod.txt | ffuf -u $MACHINENAMEURL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$MACHINENAMEURL -of md -timeout 5 -ic
+cat /tmp/raft-small-files-mod.txt | ffuf -u $MACHINENAMEURL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_machinenameurl -of md -timeout 5 -ic
 
 echo -e "Quick check for wordpress"
 echo -e "Sleep for one minute as previous scanning can sometimes cause failures now"
