@@ -236,11 +236,15 @@ cat /tmp/raft-small-files-mod.txt | ffuf -u $MACHINENAMEURL -w - -t $THREADS -mc
 echo -e "Quick check for wordpress"
 echo -e "Sleep for one minute as previous scanning can sometimes cause failures now"
 sleep 60
-if curl --output /dev/null --silent --head --fail "$URLONITSOWN/wp-login.php"; then
+PROXYSTRING=""
+if [ ! -z $PROXY ]; then
+  PROXYSTRING="--proxy $PROXY"
+fi
+if curl $PROXYSTRING --connect-timeout 20 --output /dev/null --silent --head --fail "$URLONITSOWN/wp-login.php"; then
   echo "Found wordpress on $URLONITSOWN"
   echo "  | $URLONITSOWN/wp-login.php | $URLONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.urlonitsown
 fi
-if curl --output /dev/null --silent --head --fail "$MACHINENAMEURLONITSOWN/wp-login.php"; then
+if curl $PROXYSTRING --connect-timeout 20 --output /dev/null --silent --head --fail "$MACHINENAMEURLONITSOWN/wp-login.php"; then
   echo "Found wordpress on $MACHINENAMEURLONITSOWN"
   echo "  | $MACHINENAMEURLONITSOWN/wp-login.php | $MACHINENAMEURLONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.machinenameurlonitsown
 fi
