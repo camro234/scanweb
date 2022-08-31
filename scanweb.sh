@@ -80,6 +80,12 @@ fi
 # IP=$value
 USESUBDIR="y"
 
+IPONLY=$IP
+PORTONLY=$PORT
+if [[ -z $PORTONLY ]]; then
+  PORTONLY=80
+fi
+
 if [[ -z $SUBDIR ]]; then
   SUBDIR=""
   USESUBDIR="n"
@@ -152,11 +158,21 @@ if [ $USESUBDIR = 'y' ]; then
 fi
 HOSTNAME=$(echo "${HOSTNAME}" | sed 's/\//\./g')
 
+echo -e "Kick off Nikto scan in the background first, timeout after 10 mins, should have found anything interesting by then"
+if [ -z $PROXY ]; then
+  # can only do Nikto if no proxying is specified, cannot get the proxy config to work with Nikto unfortunately
+  NIKTOURL=$URLONITSOWN
+  if [ $ISHTTPS = 'y' ]; then
+    NIKTOURL="$URLONITSOWN -ssl"
+  fi
+  timeout 600 nikto -host $NIKTOURL -timeout 5 -Tuning 023578abc -o $OUTPUTDIR/niktolog.txt 2>/dev/null 1&>2 &
+fi
+
 echo -e "Starting step 1 - IIS"
-sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/IIS.fuzz.txt | uniq -i | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._1_iis -of md -timeout 5 -ic
+sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/IIS.fuzz.txt | uniq -i | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,403,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._1_iis -of md -timeout 5 -ic
 
 echo -e "Starting step 2 - big"
-sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/big.txt | uniq -i | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._2_big -of md -timeout 5 -ic -recursion -recursion-depth 1
+sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/big.txt | uniq -i | grep -v "^\." | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,403,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._2_big -of md -timeout 5 -ic -recursion -recursion-depth 1
 
 echo "$MACHINENAMEDIR" > /tmp/raft-small-files-mod.txt
 echo "$MACHINENAMEDIR.html" >> /tmp/raft-small-files-mod.txt
@@ -201,7 +217,7 @@ sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt | uniq -i
 echo -e "Starting step 3 - small"
 cat /tmp/raft-small-files-mod.txt | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small -of md -timeout 5 -ic
 
-DIRS_FOUND=$(cat $OUTPUTDIR/ffuf.$HOSTNAME._2_big| grep '/ |' | awk -F'|' '{print $4}')
+DIRS_FOUND=$(cat $OUTPUTDIR/ffuf.$HOSTNAME._2_big| grep '/ |' | awk -F'|' '{print $3"/"}' | sed 's/\ \//\//g' | sed 's/\/\//\//g' | sed 's/ttp\:\//ttp\:\/\//g')
 NUM=0
 for DIR_FOUND in $DIRS_FOUND
 do
@@ -220,8 +236,14 @@ do
     DIR_FOUND="$DIR_FOUND -replay-proxy $REPLAYPROXY"
   fi
 
-  echo -e "Starting step 3 - small - on found dirs"
-  cat /tmp/raft-small-files-mod.txt | ffuf -u $DIR_FOUND -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$NUM -of md -timeout 5 -ic
+  if [[ "$DIR_FOUND" == *"/cgi-bin/"* ]]; then
+    # handle cgi-bin a little differently as we are specifically looking for scripts here
+    echo -e "Starting step 3 - small - on found cgi-bin dirs"
+    sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-medium-directories.txt | uniq -i | ffuf -u $DIR_FOUND -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -e .sh,.cgi,.pl,.py -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$NUM -of md -timeout 5 -ic
+  else
+    echo -e "Starting step 3 - small - on found dirs"
+    cat /tmp/raft-small-files-mod.txt | ffuf -u $DIR_FOUND -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$NUM -of md -timeout 5 -ic
+  fi
 
   echo -e "Quick check for wordpress on found dirs"
   if curl --output /dev/null --silent --head --fail "$DIRFOUNDONITSOWN/wp-login.php"; then
@@ -263,7 +285,24 @@ if [ $USEHOSTNAME = 'n' ] && [ $USESUBDIR = 'n' ]; then
   echo -e "\n\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
 fi
 echo -e "\e[0;35mPaths found:\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
-cat $OUTPUTDIR/ffuf.staging2.$HOSTNAME >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+cat $OUTPUTDIR/ffuf.staging2.$HOSTNAME | sed 's/\/\//\//g' | sed 's/ttp\:\//ttp\:\/\//g' | sed 's/ttps\:\//ttps\:\/\//g' | uniq -i >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+echo -e "\n\n\e[0;35mNikto log:\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+cat $OUTPUTDIR/niktolog.txt >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+
+CGI_DIRS_FOUND=$(cat $OUTPUTDIR/ffuf.complete.none.txt| grep '/cgi-bin/'| grep -vwE "\+")
+NUM=0
+for CGI_DIR_FOUND in $CGI_DIRS_FOUND
+do
+  ((NUM++))
+  echo "IPONLY = $IPONLY"
+  echo "PORTONLY = $PORTONLY"
+  CGI_DIR_CONCAT=$(echo "$CGI_DIR_FOUND" | sed 's/https\:\/\///g' | sed 's/http\:\/\///g' | sed "s/${IPONLY}//g")
+  echo -e "\ncgi-bin location: $CGI_DIR_CONCAT" >> $OUTPUTDIR/nmap.cgi.$NUM.txt
+  nmap $IPONLY -p $PORTONLY --script=http-shellshock --script-args uri=$CGI_DIR_CONCAT 2>/dev/null 1>> $OUTPUTDIR/nmap.cgi.$NUM.txt
+done
+
+echo -e "\n\n\e[0;35mcgi-bin findings:\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+cat $OUTPUTDIR/nmap.cgi.* >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
 
 echo -e "Done!"
 echo -e "Review the completed report with:\nless $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt"
