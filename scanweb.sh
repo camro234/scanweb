@@ -21,7 +21,7 @@ while [ $# -gt 0 ]; do
     declare $param="$2" 2>/dev/null
   fi
 
-  if [ $param != "i" ] && [ $param != "-host" ] && [ $param != "-usehost" ] && [ $param != "e" ] && [ $param != "-usehttps" ] && [ $param != "t" ] && [ $param != "-outdir" ] && [ $param != "d" ] && [ $param != "-customsecpath" ] && [ $param != "-port" ] && [ $param != "-proxyurl" ] && [ $param != "-replayproxyurl" ]; then
+  if [ $param != "i" ] && [ $param != "-host" ] && [ $param != "-usehost" ] && [ $param != "e" ] && [ $param != "-usehttps" ] && [ $param != "t" ] && [ $param != "-outdir" ] && [ $param != "d" ] && [ $param != "-customsecpath" ] && [ $param != "-port" ] && [ $param != "-proxyurl" ] && [ $param != "-replayproxyurl" ] && [ $param != "fw" ]; then
     SHOWUSAGE="y"
     echo -e "ERROR: Invalid parameter $param"
   fi 
@@ -62,7 +62,7 @@ REPLAYPROXY=$replayproxyurl
 MACHINENAMEDIR=$(echo "$HOSTNAME" | cut -d "." -f 1)
 
 if [[ -z $IP || -z $HOSTNAME || -z $USEHOSTNAME || -z $EXTENSIONS || -z $ISHTTPS || -z $THREADS || -z $OUTPUTDIR || $SHOWUSAGE = "y" ]]; then
-	echo -e "usage:\n\t$0 -i <ip-address> --host <hostname> --usehost <use-hostname-instead-of-ip> -e <file-extensions> --usehttps <is-https> -t <num-threads> --outdir <output-file-dir> [-d <sub-dir>] [--customsecpath <custom-seclists-path>] [--port <custom-port>] [--proxyurl <proxy-url> (For example: http://127.0.0.1:8080 or socks5://127.0.0.1:8080)] [--replayproxyurl <replay-proxy-url>]"
+	echo -e "usage:\n\t$0 -i <ip-address> --host <hostname> --usehost <use-hostname-instead-of-ip> -e <file-extensions> --usehttps <is-https> -t <num-threads> -fw <comma-seperated-wordcount-to-filter-out> --outdir <output-file-dir> [-d <sub-dir>] [--customsecpath <custom-seclists-path>] [--port <custom-port>] [--proxyurl <proxy-url> (For example: http://127.0.0.1:8080 or socks5://127.0.0.1:8080)] [--replayproxyurl <replay-proxy-url>]"
   echo -e "example; ./scanweb.sh -i 10.10.10.1 --host thebox.htb --usehost n -e .php,.html,.txt --usehttps y -t 200 --outdir ~/attack"
   echo -e "example; ./scanweb.sh -i 10.10.10.1 --host thebox.htb --usehost n -e .php,.html,.txt --usehttps y -t 200 --outdir ~/attack -d mydir"
   exit 1
@@ -79,6 +79,11 @@ fi
 # value=`cat $IP_FILE`
 # IP=$value
 USESUBDIR="y"
+
+FFUFFILTER="-fw $fw"
+if [[ -z $fw ]]; then
+  FFUFFILTER=""
+fi
 
 IPONLY=$IP
 PORTONLY=$PORT
@@ -169,10 +174,10 @@ if [ -z $PROXY ]; then
 fi
 
 echo -e "Starting step 1 - IIS"
-sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/IIS.fuzz.txt | uniq -i | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,403,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._1_iis -of md -timeout 5 -ic
+sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/IIS.fuzz.txt | uniq -i | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,403,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._1_iis -of md -timeout 5 -ic $FFUFFILTER
 
 echo -e "Starting step 2 - big"
-sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/big.txt | uniq -i | grep -v "^\." | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,403,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._2_big -of md -timeout 5 -ic -recursion -recursion-depth 1
+sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/big.txt | uniq -i | grep -v "^\." | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,403,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._2_big -of md -timeout 5 -ic -recursion -recursion-depth 1 $FFUFFILTER
 
 echo "$MACHINENAMEDIR" > /tmp/raft-small-files-mod.txt
 echo "$MACHINENAMEDIR.html" >> /tmp/raft-small-files-mod.txt
@@ -215,7 +220,12 @@ echo "$MACHINENAMEDIR.z" >> /tmp/raft-small-files-mod.txt
 sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt | uniq -i >> /tmp/raft-small-files-mod.txt
 
 echo -e "Starting step 3 - small"
-cat /tmp/raft-small-files-mod.txt | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small -of md -timeout 5 -ic
+cat /tmp/raft-small-files-mod.txt | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small -of md -timeout 5 -ic $FFUFFILTER
+
+PROXYSTRING=""
+if [ ! -z $PROXY ]; then
+  PROXYSTRING="--proxy $PROXY"
+fi
 
 DIRS_FOUND=$(cat $OUTPUTDIR/ffuf.$HOSTNAME._2_big| grep '/ |' | awk -F'|' '{print $3"/"}' | sed 's/\ \//\//g' | sed 's/\/\//\//g' | sed 's/ttp\:\//ttp\:\/\//g')
 NUM=0
@@ -239,40 +249,60 @@ do
   if [[ "$DIR_FOUND" == *"/cgi-bin/"* ]]; then
     # handle cgi-bin a little differently as we are specifically looking for scripts here
     echo -e "Starting step 3 - small - on found cgi-bin dirs"
-    sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-medium-directories.txt | uniq -i | ffuf -u $DIR_FOUND -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -e .sh,.cgi,.pl,.py -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$NUM -of md -timeout 5 -ic
+    sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-medium-directories.txt | uniq -i | ffuf -u $DIR_FOUND -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -e .sh,.cgi,.pl,.py -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$NUM -of md -timeout 5 -ic $FFUFFILTER
   else
     echo -e "Starting step 3 - small - on found dirs"
-    cat /tmp/raft-small-files-mod.txt | ffuf -u $DIR_FOUND -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$NUM -of md -timeout 5 -ic
+    cat /tmp/raft-small-files-mod.txt | ffuf -u $DIR_FOUND -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_$NUM -of md -timeout 5 -ic $FFUFFILTER
   fi
 
   echo -e "Quick check for wordpress on found dirs"
-  if curl --output /dev/null --silent --head --fail "$DIRFOUNDONITSOWN/wp-login.php"; then
-    echo "Found wordpress on $DIRFOUNDONITSOWN"
-    echo "  | $DIRFOUNDONITSOWN/wp-login.php | $DIRFOUNDONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.dirfoundonitsown_$NUM
+  if [ -z $fw ]; then
+    if curl $PROXYSTRING --output /dev/null --connect-timeout 20 --silent --head --fail "$DIRFOUNDONITSOWN/wp-login.php"; then
+      echo "Found wordpress on $DIRFOUNDONITSOWN"
+      echo "  | $DIRFOUNDONITSOWN/wp-login.php | $DIRFOUNDONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.dirfoundonitsown_$NUM
+    fi
+  else
+    RESPWORDCOUNT=$(curl $PROXYSTRING --connect-timeout 20 --silent --fail "$DIRFOUNDONITSOWN/wp-login.php" | wc -w)
+    if [[ ",$fw," != *",$RESPWORDCOUNT,"* ]] && [[ $RESPWORDCOUNT != 0 ]]; then
+      echo "Found wordpress on $DIRFOUNDONITSOWN"
+      echo "  | $DIRFOUNDONITSOWN/wp-login.php | $DIRFOUNDONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.dirfoundonitsown_$NUM
+    fi
   fi
 done
 
 echo -e "Starting step 3 - small - on machine name as a dir"
-cat /tmp/raft-small-files-mod.txt | ffuf -u $MACHINENAMEURL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_machinenameurl -of md -timeout 5 -ic
+cat /tmp/raft-small-files-mod.txt | ffuf -u $MACHINENAMEURL -w - -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._4_small_machinenameurl -of md -timeout 5 -ic $FFUFFILTER
 
 echo -e "Quick check for wordpress"
 echo -e "Sleep for one minute as previous scanning can sometimes cause failures now"
 sleep 60
-PROXYSTRING=""
-if [ ! -z $PROXY ]; then
-  PROXYSTRING="--proxy $PROXY"
-fi
-if curl $PROXYSTRING --connect-timeout 20 --output /dev/null --silent --head --fail "$URLONITSOWN/wp-login.php"; then
-  echo "Found wordpress on $URLONITSOWN"
-  echo "  | $URLONITSOWN/wp-login.php | $URLONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.urlonitsown
-fi
-if curl $PROXYSTRING --connect-timeout 20 --output /dev/null --silent --head --fail "$MACHINENAMEURLONITSOWN/wp-login.php"; then
-  echo "Found wordpress on $MACHINENAMEURLONITSOWN"
-  echo "  | $MACHINENAMEURLONITSOWN/wp-login.php | $MACHINENAMEURLONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.machinenameurlonitsown
+
+if [ -z $fw ]; then
+  if curl $PROXYSTRING --output /dev/null --connect-timeout 20 --silent --head --fail "$URLONITSOWN/wp-login.php"; then
+    echo "Found wordpress on $URLONITSOWN"
+    echo "  | $URLONITSOWN/wp-login.php | $URLONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.urlonitsown
+  fi
+
+  if curl $PROXYSTRING --output /dev/null --connect-timeout 20 --silent --head --fail "$MACHINENAMEURLONITSOWN/wp-login.php"; then
+    echo "Found wordpress on $MACHINENAMEURLONITSOWN"
+    echo "  | $MACHINENAMEURLONITSOWN/wp-login.php | $MACHINENAMEURLONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.machinenameurlonitsown
+  fi
+else
+  RESPWORDCOUNT=$(curl $PROXYSTRING --connect-timeout 20 --silent --fail "$URLONITSOWN/wp-login.php" | wc -w)
+  if [[ ",$fw," != *",$RESPWORDCOUNT,"* ]] && [[ $RESPWORDCOUNT != 0 ]]; then
+    echo "Found wordpress on $URLONITSOWN"
+    echo "  | $URLONITSOWN/wp-login.php | $URLONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.urlonitsown
+  fi
+  
+  RESPWORDCOUNT=$(curl $PROXYSTRING --connect-timeout 20 --silent --fail "$MACHINENAMEURLONITSOWN/wp-login.php" | wc -w)
+  if [[ ",$fw," != *",$RESPWORDCOUNT,"* ]] && [[ $RESPWORDCOUNT != 0 ]]; then
+    echo "Found wordpress on $MACHINENAMEURLONITSOWN"
+    echo "  | $MACHINENAMEURLONITSOWN/wp-login.php | $MACHINENAMEURLONITSOWN/wp-login.php |  | 452 | 200 | 4384 | 915 | 122 | text/html | 254.868981ms |  |" > $OUTPUTDIR/ffuf.$HOSTNAME.machinenameurlonitsown
+  fi
 fi
 
 echo -e "Starting step 4 - medium"
-sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/directory-list-2.3-medium.txt | uniq -i | ffuf -u $URL -w - -e $EXTENSIONS -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._3_medium -of md -timeout 5 -ic
+sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/directory-list-2.3-medium.txt | uniq -i | ffuf -u $URL -w - -e $EXTENSIONS -t $THREADS -mc 200,204,301,302,307,308,401,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._3_medium -of md -timeout 5 -ic $FFUFFILTER
 
 echo -e "Combining results for easy reading"
 echo "" > $OUTPUTDIR/ffuf.staging.$HOSTNAME
