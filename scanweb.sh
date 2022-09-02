@@ -309,6 +309,11 @@ echo "" > $OUTPUTDIR/ffuf.staging.$HOSTNAME
 cat $OUTPUTDIR/ffuf.$HOSTNAME.* >> $OUTPUTDIR/ffuf.staging.$HOSTNAME
 cat $OUTPUTDIR/ffuf.staging.$HOSTNAME | grep '| http' | awk -F'| ' '{print $6}' | sort | uniq -i | grep -v '/.$' > $OUTPUTDIR/ffuf.staging2.$HOSTNAME
 echo "" > $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+
+echo -e "\e[0;35mWhatweb details:\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+whatweb $URLONITSOWN >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+echo -e "\n\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt 
+
 if [ $USEHOSTNAME = 'n' ] && [ $USESUBDIR = 'n' ]; then
   echo -e "\e[0;35mVHosts found:\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
   cat $OUTPUTDIR/gobuster_vhosts >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
