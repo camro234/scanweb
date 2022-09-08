@@ -99,7 +99,8 @@ fi
 if [ $USEHOSTNAME = 'n' ] && [ $USESUBDIR = 'n' ]; then
   # only do vhost when not searching by hostname for ffuf, i.e. only first iteration
   echo -e "Scanning for virtual hosts..."
-  gobuster vhost -u $HOSTNAME -w $CUSTOMSECLISTSPATH/Discovery/DNS/subdomains-top1million-110000.txt -t 80 --timeout 30s --no-error -o $OUTPUTDIR/gobuster_vhosts
+  cat $CUSTOMSECLISTSPATH/Discovery/DNS/subdomains-top1million-110000.txt | grep -v 'xn--' | grep -v 'gc.' | grep -v '_domainkey' | grep -v '__' | grep -v 'hallam' | sort -i | uniq -i > /tmp/subdomains.txt
+  gobuster vhost -u $HOSTNAME -w /tmp/subdomains.txt -t 80 --timeout 30s --no-error -o $OUTPUTDIR/gobuster_vhosts
 fi
 
 if [ $USEHOSTNAME = 'y' ]; then
