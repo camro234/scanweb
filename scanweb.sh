@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 echo -e "\e[0;35m_________                                  ________  ________     _____   
 \_   ___ \ _____     _____ _______   ____  \_____  \ \_____  \   /  |  |  
@@ -29,12 +29,6 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-if ! command -v gobuster &> /dev/null
-then
-    echo -e  "ERROR: gobuster must be installed for this script to run"
-    exit 1
-fi
-
 if ! command -v ffuf &> /dev/null
 then
     echo -e  "ERROR: ffuf must be installed for this script to run"
@@ -60,6 +54,7 @@ PORT=$port
 PROXY=$proxyurl
 REPLAYPROXY=$replayproxyurl
 MACHINENAMEDIR=$(echo "$HOSTNAME" | cut -d "." -f 1)
+VHOSTNAME=$host
 
 if [[ -z $IP || -z $HOSTNAME || -z $USEHOSTNAME || -z $EXTENSIONS || -z $ISHTTPS || -z $THREADS || -z $OUTPUTDIR || $SHOWUSAGE = "y" ]]; then
 	echo -e "usage:\n\t$0 -i <ip-address> --host <hostname> --usehost <use-hostname-instead-of-ip> -e <file-extensions> --usehttps <is-https> -t <num-threads> -fw <comma-seperated-wordcount-to-filter-out> --outdir <output-file-dir> [-d <sub-dir>] [--customsecpath <custom-seclists-path>] [--port <custom-port>] [--proxyurl <proxy-url> (For example: http://127.0.0.1:8080 or socks5://127.0.0.1:8080)] [--replayproxyurl <replay-proxy-url>]"
@@ -96,16 +91,10 @@ if [[ -z $SUBDIR ]]; then
   USESUBDIR="n"
 fi
 
-if [ $USEHOSTNAME = 'n' ] && [ $USESUBDIR = 'n' ]; then
-  # only do vhost when not searching by hostname for ffuf, i.e. only first iteration
-  echo -e "Scanning for virtual hosts..."
-  cat $CUSTOMSECLISTSPATH/Discovery/DNS/subdomains-top1million-110000.txt | grep -v 'xn--' | grep -v 'gc.' | grep -v '_domainkey' | grep -v '__' | grep -v 'hallam' | grep -v '_n_' | grep -v '_mbp' | grep -v 'sb_' | grep -v 'sklep_' | sort -i | uniq -i > /tmp/subdomains.txt
-  gobuster vhost -u $HOSTNAME -w /tmp/subdomains.txt -t 80 --timeout 30s --no-error -o $OUTPUTDIR/gobuster_vhosts
-fi
-
 if [ $USEHOSTNAME = 'y' ]; then
   IP="$HOSTNAME"
 fi
+ASHOSTNAME="$HOSTNAME"
 
 HTTP="http"
 if [ $ISHTTPS = 'y' ]; then
@@ -115,42 +104,70 @@ fi
 if [ $USESUBDIR = 'y' ]; then
   if [ -z $PORT ]; then
     URL="$HTTP://$IP/$SUBDIR/FUZZ"
+    ASHOSTNAMEURL="$HTTP://$ASHOSTNAME/$SUBDIR/FUZZ"
+    VHOSTURL="$HTTP://$IP"
     MACHINENAMEURL="$HTTP://$IP/$SUBDIR/$MACHINENAMEDIR/FUZZ"
+    ASHOSTNAMEMACHINENAMEURL="$HTTP://$ASHOSTNAME/$SUBDIR/$MACHINENAMEDIR/FUZZ"
     URLONITSOWN="$HTTP://$IP/$SUBDIR"
+    ASHOSTNAMEURLONITSOWN="$HTTP://$ASHOSTNAME/$SUBDIR"
     MACHINENAMEURLONITSOWN="$HTTP://$IP/$SUBDIR/$MACHINENAMEDIR"
+    ASHOSTNAMEMACHINENAMEURLONITSOWN="$HTTP://$ASHOSTNAME/$SUBDIR/$MACHINENAMEDIR"
   else
     URL="$HTTP://$IP:$PORT/$SUBDIR/FUZZ"
+    ASHOSTNAMEURL="$HTTP://$ASHOSTNAME:$PORT/$SUBDIR/FUZZ"
+    VHOSTURL="$HTTP://$IP:$PORT"
     MACHINENAMEURL="$HTTP://$IP:$PORT/$SUBDIR/$MACHINENAMEDIR/FUZZ"
+    ASHOSTNAMEMACHINENAMEURL="$HTTP://$ASHOSTNAME:$PORT/$SUBDIR/$MACHINENAMEDIR/FUZZ"
     URLONITSOWN="$HTTP://$IP:$PORT/$SUBDIR"
+    ASHOSTNAMEURLONITSOWN="$HTTP://$ASHOSTNAME:$PORT/$SUBDIR"
     MACHINENAMEURLONITSOWN="$HTTP://$IP:$PORT/$SUBDIR/$MACHINENAMEDIR"
+    ASHOSTNAMEMACHINENAMEURLONITSOWN="$HTTP://$ASHOSTNAME:$PORT/$SUBDIR/$MACHINENAMEDIR"
   fi
 else
   if [ -z $PORT ]; then
     URL="$HTTP://$IP/FUZZ"
+    ASHOSTNAMEURL="$HTTP://$ASHOSTNAME/FUZZ"
+    VHOSTURL="$HTTP://$IP"
     MACHINENAMEURL="$HTTP://$IP/$MACHINENAMEDIR/FUZZ"
+    ASHOSTNAMEMACHINENAMEURL="$HTTP://$ASHOSTNAME/$MACHINENAMEDIR/FUZZ"
     URLONITSOWN="$HTTP://$IP"
+    ASHOSTNAMEURLONITSOWN="$HTTP://$ASHOSTNAME"
     MACHINENAMEURLONITSOWN="$HTTP://$IP/$MACHINENAMEDIR"
+    ASHOSTNAMEMACHINENAMEURLONITSOWN="$HTTP://$ASHOSTNAME/$MACHINENAMEDIR"
   else
     URL="$HTTP://$IP:$PORT/FUZZ"
+    ASHOSTNAMEURL="$HTTP://$ASHOSTNAME/FUZZ"
+    VHOSTURL="$HTTP://$IP:$PORT"
     MACHINENAMEURL="$HTTP://$IP:$PORT/$MACHINENAMEDIR/FUZZ"
+    ASHOSTNAMEMACHINENAMEURL="$HTTP://$ASHOSTNAME:$PORT/$MACHINENAMEDIR/FUZZ"
     URLONITSOWN="$HTTP://$IP:$PORT"
-    MACHINENAMEURLONITSOWN="$HTTP://$IP:$PORT/$MACHINENAMEDIR"
+    ASHOSTNAMEURLONITSOWN="$HTTP://$ASHOSTNAME:$PORT"
+    ASHOSTNAMEMACHINENAMEURLONITSOWN="$HTTP://$ASHOSTNAME:$PORT/$MACHINENAMEDIR"
   fi
 fi
 
 if [ $ISHTTPS = 'y' ]; then
   URL="$URL -k"
+  ASHOSTNAMEURL="$ASHOSTNAMEURL -k"
+  VHOSTURL="$VHOSTURL -k"
   MACHINENAMEURL="$MACHINENAMEURL -k"
+  ASHOSTNAMEMACHINENAMEURL="$ASHOSTNAMEMACHINENAMEURL -k"
 fi
 
 if [ ! -z $PROXY ]; then
   URL="$URL -x $PROXY"
+  ASHOSTNAMEURL="$ASHOSTNAMEURL -x $PROXY"
+  VHOSTURL="$VHOSTURL -x $PROXY"
   MACHINENAMEURL="$MACHINENAMEURL -x $PROXY"
+  ASHOSTNAMEMACHINENAMEURL="$ASHOSTNAMEMACHINENAMEURL -x $PROXY"
 fi
 
 if [ ! -z $REPLAYPROXY ]; then
   URL="$URL -replay-proxy $REPLAYPROXY"
+  ASHOSTNAMEURL="$ASHOSTNAMEURL -replay-proxy $REPLAYPROXY"
+  VHOSTURL="$VHOSTURL -replay-proxy $REPLAYPROXY"
   MACHINENAMEURL="$MACHINENAMEURL -replay-proxy $REPLAYPROXY"
+  ASHOSTNAMEMACHINENAMEURL="$ASHOSTNAMEMACHINENAMEURL -replay-proxy $REPLAYPROXY"
 fi
 
 if [ $USEHOSTNAME = 'n' ]; then
@@ -163,6 +180,18 @@ if [ $USESUBDIR = 'y' ]; then
   HOSTNAME="$HOSTNAME.$SUBDIR"
 fi
 HOSTNAME=$(echo "${HOSTNAME}" | sed 's/\//\./g')
+VHOSTNAME=$(echo "${VHOSTNAME}" | sed 's/\//\./g')
+
+if [ $USEHOSTNAME = 'n' ] && [ $USESUBDIR = 'n' ]; then
+  # only do vhost when not searching by hostname for ffuf, i.e. only first iteration
+  echo -e "Scanning for virtual hosts..."
+  cat $CUSTOMSECLISTSPATH/Discovery/DNS/subdomains-top1million-110000.txt > /tmp/subdomains_part1.txt
+  cat $CUSTOMSECLISTSPATH/Discovery/DNS/bitquark-subdomains-top100000.txt > /tmp/subdomains_part2.txt
+  cat /tmp/subdomains_part1.txt > /tmp/subdomains_part3.txt
+  cat /tmp/subdomains_part2.txt >> /tmp/subdomains_part3.txt
+  cat /tmp/subdomains_part3.txt | tr A-Z a-z | grep -v 'xn--' | grep -v 'gc.' | grep -v '_domainkey' | grep -v '__' | grep -v 'hallam' | grep -v '_n_' | grep -v '_mbp' | grep -v 'sb_' | grep -v 'sklep_' | sort -i | uniq -i > /tmp/subdomains.txt
+  cat /tmp/subdomains.txt | ffuf -H "Host: FUZZ.${VHOSTNAME}" -u $VHOSTURL -w - -t $THREADS -c -ac -o $OUTPUTDIR/ffuf_vhosts -of md -timeout 5 -ic $FFUFFILTER
+fi
 
 echo -e "Kick off Nikto scan in the background first, timeout after 10 mins, should have found anything interesting by then"
 if [ -z $PROXY ]; then
@@ -174,11 +203,48 @@ if [ -z $PROXY ]; then
   timeout 600 nikto -host $NIKTOURL -timeout 5 -Tuning 023578abc -o $OUTPUTDIR/niktolog.txt 2>/dev/null 1&>2 &
 fi
 
-echo -e "Starting step 1 - IIS"
-sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/IIS.fuzz.txt | uniq -i | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,403,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._1_iis -of md -timeout 5 -ic $FFUFFILTER
+# Commenting out IIS scan as it never seeme to be useful and sometimes causes false positives
+# echo -e "Starting step 1 - IIS"
+# sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/IIS.fuzz.txt | uniq -i | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,403,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._1_iis -of md -timeout 5 -ic $FFUFFILTER
 
 echo -e "Starting step 2 - big"
 sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/big.txt | uniq -i | grep -v "^\." | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,403,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._2_big -of md -timeout 5 -ic -recursion -recursion-depth 1 $FFUFFILTER
+
+SWITCHED_TO_HOSTNAME="n"
+
+if [[ $(wc -l < $OUTPUTDIR/ffuf.$HOSTNAME._2_big) -le 7 && $USEHOSTNAME = 'n' ]]; then
+  echo -e "\e[0;35mDidn't find anything on big using IP, so automatically switching to --usehost y\e[m"
+  echo -e "Starting step 2 - big - again but with hostname"
+  rm -rf $OUTPUTDIR/ffuf.$HOSTNAME._2_big
+  PREVURL=$URL
+  PREVURLONITSOWN=$URLONITSOWN
+  PREVMACHINENAMEURL=$MACHINENAMEURL
+  PREVMACHINENAMEURLONITSOWN=$MACHINENAMEURLONITSOWN
+  URL=$ASHOSTNAMEURL
+  URLONITSOWN=$ASHOSTNAMEURLONITSOWN
+  MACHINENAMEURL=$ASHOSTNAMEMACHINENAMEURL
+  MACHINENAMEURLONITSOWN=$ASHOSTNAMEMACHINENAMEURLONITSOWN
+  sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/big.txt | uniq -i | grep -v "^\." | ffuf -u $URL -w - -t $THREADS -mc 200,204,301,302,307,308,401,403,405,500 -c -ac -o $OUTPUTDIR/ffuf.$HOSTNAME._2_big -of md -timeout 5 -ic -recursion -recursion-depth 1 $FFUFFILTER
+  if [[ $(wc -l < $OUTPUTDIR/ffuf.$HOSTNAME._2_big) -le 7 ]]; then
+    echo -e "\e[0;35mStill didn't find anything on big using hostname instead of IP, so switching back to --usehost n\e[m"
+    # still nothing found using hostname, so go back to what it used previously
+    URL=$PREVURL
+    URLONITSOWN=$PREVURLONITSOWN
+    MACHINENAMEURL=$PREVMACHINENAMEURL
+    MACHINENAMEURLONITSOWN=$PREVMACHINENAMEURLONITSOWN
+  else
+    SWITCHED_TO_HOSTNAME="y"
+    echo -e "\e[0;35mKicking off another Nikto scan in the background as we switched to --usehost y, timeout after 10 mins, should have found anything interesting by then\e[m"
+    if [ -z $PROXY ]; then
+      # can only do Nikto if no proxying is specified, cannot get the proxy config to work with Nikto unfortunately
+      NIKTOURL=$URLONITSOWN
+      if [ $ISHTTPS = 'y' ]; then
+        NIKTOURL="$URLONITSOWN -ssl"
+      fi
+      timeout 600 nikto -host $NIKTOURL -timeout 5 -Tuning 023578abc -o $OUTPUTDIR/niktolog2.txt 2>/dev/null 1&>2 &
+    fi
+  fi
+fi
 
 echo "$MACHINENAMEDIR" > /tmp/raft-small-files-mod.txt
 echo "$MACHINENAMEDIR.html" >> /tmp/raft-small-files-mod.txt
@@ -317,13 +383,17 @@ echo -e "\n\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
 
 if [ $USEHOSTNAME = 'n' ] && [ $USESUBDIR = 'n' ]; then
   echo -e "\e[0;35mVHosts found:\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
-  cat $OUTPUTDIR/gobuster_vhosts >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+  cat $OUTPUTDIR/ffuf_vhosts | grep '| http' | awk -F'|' '{print $2}' | sort -i | uniq -i | grep -v '/.$' | sed 's/ //g' >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
   echo -e "\n\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
 fi
 echo -e "\e[0;35mPaths found:\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
 cat $OUTPUTDIR/ffuf.staging2.$HOSTNAME | sed 's/\/\//\//g' | sed 's/ttp\:\//ttp\:\/\//g' | sed 's/ttps\:\//ttps\:\/\//g' | uniq -i >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
-echo -e "\n\n\e[0;35mNikto log:\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+echo -e "\n\n\e[0;35mNikto log(s):\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
 cat $OUTPUTDIR/niktolog.txt >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+if [ $SWITCHED_TO_HOSTNAME == "y" ]; then
+  echo -e "\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+  cat $OUTPUTDIR/niktolog2.txt >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+fi
 
 CGI_DIRS_FOUND=$(cat $OUTPUTDIR/ffuf.complete.none.txt| grep '/cgi-bin/'| grep -vwE "\+")
 NUM=0
@@ -338,7 +408,7 @@ do
 done
 
 echo -e "\n\n\e[0;35mcgi-bin findings:\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
-cat $OUTPUTDIR/nmap.cgi.* >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+cat $OUTPUTDIR/nmap.cgi.* >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt 2>/dev/null
 
 echo -e "Done!"
 echo -e "Review the completed report with:\nless $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt"
