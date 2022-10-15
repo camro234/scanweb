@@ -187,9 +187,16 @@ if [ $USEHOSTNAME = 'n' ] && [ $USESUBDIR = 'n' ]; then
   echo -e "Scanning for virtual hosts..."
   cat $CUSTOMSECLISTSPATH/Discovery/DNS/subdomains-top1million-110000.txt > /tmp/subdomains_part1.txt
   cat $CUSTOMSECLISTSPATH/Discovery/DNS/bitquark-subdomains-top100000.txt > /tmp/subdomains_part2.txt
-  cat /tmp/subdomains_part1.txt > /tmp/subdomains_part3.txt
-  cat /tmp/subdomains_part2.txt >> /tmp/subdomains_part3.txt
-  cat /tmp/subdomains_part3.txt | tr A-Z a-z | grep -v 'xn--' | grep -v 'gc.' | grep -v '_domainkey' | grep -v '__' | grep -v 'hallam' | grep -v '_n_' | grep -v '_mbp' | grep -v 'sb_' | grep -v 'sklep_' | sort -i | uniq -i > /tmp/subdomains.txt
+
+  while read -r line; do echo "preprod-$line" ; done < ~/src/SecLists/Discovery/Web-Content/raft-small-words.txt > /tmp/subdomains_part3.txt
+  while read -r line; do echo "dev-$line" ; done < ~/src/SecLists/Discovery/Web-Content/raft-small-words.txt >> /tmp/subdomains_part3.txt
+  while read -r line; do echo "test-$line" ; done < ~/src/SecLists/Discovery/Web-Content/raft-small-words.txt >> /tmp/subdomains_part3.txt
+  while read -r line; do echo "qa-$line" ; done < ~/src/SecLists/Discovery/Web-Content/raft-small-words.txt >> /tmp/subdomains_part3.txt
+
+  cat /tmp/subdomains_part1.txt > /tmp/subdomains_part4.txt
+  cat /tmp/subdomains_part2.txt >> /tmp/subdomains_part4.txt
+  cat /tmp/subdomains_part3.txt >> /tmp/subdomains_part4.txt
+  cat /tmp/subdomains_part4.txt | tr A-Z a-z | grep -v 'xn--' | grep -v 'gc.' | grep -v '_domainkey' | grep -v '__' | grep -v 'hallam' | grep -v '_n_' | grep -v '_mbp' | grep -v 'sb_' | grep -v 'sklep_' | sort -i | uniq -i > /tmp/subdomains.txt
   cat /tmp/subdomains.txt | ffuf -H "Host: FUZZ.${VHOSTNAME}" -u $VHOSTURL -w - -t $THREADS -c -ac -o $OUTPUTDIR/ffuf_vhosts -of md -timeout 5 -ic $FFUFFILTER
 fi
 
