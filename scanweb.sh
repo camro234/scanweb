@@ -99,6 +99,8 @@ ASHOSTNAME="$HOSTNAME"
 HTTP="http"
 if [ $ISHTTPS = 'y' ]; then
   HTTP="https"
+  # since we are HTTPS, lets do a max of 80 threads since HTTPS uses more resources and I find 200 threads is too intensive
+  THREADS=$(($THREADS<80?$THREADS:80))
 fi
 
 if [ $USESUBDIR = 'y' ]; then
@@ -146,6 +148,21 @@ else
   fi
 fi
 
+QUICK_CURL=$(curl $URL -k -I 2>/dev/null | grep HTTP | cut -d " " -f 2)
+if [ $QUICK_CURL = 302 2>/dev/null ]; then 
+  # site moved, check redirect
+  MOVED_TO=$(curl $URL -k 2>/dev/null | grep moved | cut -d "\"" -f 2)
+  while true; do
+    read -p "The site has been moved to $MOVED_TO It is recommended you scan there instead. Continue anyway? [y n] " yn
+    case $yn in
+      [Yy]* ) break;;
+      [Nn]* ) exit;;
+      * ) echo "Please answer y or n";;
+    esac
+  done
+fi
+
+
 if [ $ISHTTPS = 'y' ]; then
   URL="$URL -k"
   ASHOSTNAMEURL="$ASHOSTNAMEURL -k"
@@ -182,7 +199,7 @@ fi
 HOSTNAME=$(echo "${HOSTNAME}" | sed 's/\//\./g')
 VHOSTNAME=$(echo "${VHOSTNAME}" | sed 's/\//\./g')
 
-if [ $USEHOSTNAME = 'n' ] && [ $USESUBDIR = 'n' ]; then
+if [ $USESUBDIR = 'n' ]; then
   # only do vhost when not searching by hostname for ffuf, i.e. only first iteration
   echo -e "Scanning for virtual hosts..."
   cat $CUSTOMSECLISTSPATH/Discovery/DNS/subdomains-top1million-110000.txt > /tmp/subdomains_part1.txt
