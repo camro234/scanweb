@@ -318,7 +318,12 @@ if [ ! -z $PROXY ]; then
   PROXYSTRING="--proxy $PROXY"
 fi
 
-DIRS_FOUND=$(cat $OUTPUTDIR/ffuf.$HOSTNAME._2_big| grep '/ |' | awk -F'|' '{print $3"/"}' | sed 's/\ \//\//g' | sed 's/\/\//\//g' | sed 's/ttp\:\//ttp\:\/\//g')
+##
+echo "Dirs found..."
+echo $OUTPUTDIR/ffuf/$HOSTNAME._2_big
+cat $OUTPUTDIR/ffuf.$HOSTNAME._2_big| grep '/ |' | awk -F'|' '{print $4"/"}' | sed 's/\ \//\//g' | sed 's/\/\//\//g' | sed 's/ttp\:\//ttp\:\/\//g'
+##
+DIRS_FOUND=$(cat $OUTPUTDIR/ffuf.$HOSTNAME._2_big| grep '/ |' | awk -F'|' '{print $4"/"}' | sed 's/\ \//\//g' | sed 's/\/\//\//g' | sed 's/ttp\:\//ttp\:\/\//g')
 NUM=0
 for DIR_FOUND in $DIRS_FOUND
 do
@@ -336,6 +341,11 @@ do
   if [ ! -z $REPLAYPROXY ]; then
     DIR_FOUND="$DIR_FOUND -replay-proxy $REPLAYPROXY"
   fi
+
+  ##
+  echo "DIR_FOUND:"
+  echo "$DIR_FOUND"
+  ##
 
   if [[ "$DIR_FOUND" == *"/cgi-bin/"* ]]; then
     # handle cgi-bin a little differently as we are specifically looking for scripts here
@@ -398,7 +408,7 @@ sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/directory-list-2.3-medium.txt 
 echo -e "Combining results for easy reading"
 echo "" > $OUTPUTDIR/ffuf.staging.$HOSTNAME
 cat $OUTPUTDIR/ffuf.$HOSTNAME.* >> $OUTPUTDIR/ffuf.staging.$HOSTNAME
-cat $OUTPUTDIR/ffuf.staging.$HOSTNAME | grep '| http' | awk -F'| ' '{print $6}' | sort | uniq -i | grep -v '/.$' > $OUTPUTDIR/ffuf.staging2.$HOSTNAME
+cat $OUTPUTDIR/ffuf.staging.$HOSTNAME | grep '| http' | awk -F'| ' '{print $8}' | sort | uniq -i | grep -v '/.$' > $OUTPUTDIR/ffuf.staging2.$HOSTNAME
 echo "" > $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
 
 echo -e "\e[0;35mWhatweb details:\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
@@ -407,7 +417,7 @@ echo -e "\n\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
 
 if [ $USEHOSTNAME = 'n' ] && [ $USESUBDIR = 'n' ]; then
   echo -e "\e[0;35mVHosts found:\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
-  cat $OUTPUTDIR/ffuf_vhosts | grep '| http' | awk -F'|' '{print $2}' | sort -i | uniq -i | grep -v '/.$' | sed 's/ //g' >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
+  cat $OUTPUTDIR/ffuf_vhosts | grep '| http' | awk -F'|' '{print $4}' | sort -i | uniq -i | grep -v '/.$' | sed 's/ //g' >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
   echo -e "\n\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
 fi
 echo -e "\e[0;35mPaths found:\e[m\n" >> $OUTPUTDIR/ffuf.complete.$HOSTNAME.txt
