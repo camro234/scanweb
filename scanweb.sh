@@ -308,6 +308,32 @@ echo "$MACHINENAMEDIR.rar" >> /tmp/raft-small-files-mod.txt
 echo "$MACHINENAMEDIR.arj" >> /tmp/raft-small-files-mod.txt
 echo "$MACHINENAMEDIR.tar.gz" >> /tmp/raft-small-files-mod.txt
 echo "$MACHINENAMEDIR.z" >> /tmp/raft-small-files-mod.txt
+
+# add spring boot actuators
+# https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/spring-actuators
+echo "health" >> /tmp/raft-small-files-mod.txt
+echo "dump" >> /tmp/raft-small-files-mod.txt
+echo "trace" >> /tmp/raft-small-files-mod.txt
+echo "logfile" >> /tmp/raft-small-files-mod.txt
+echo "beans" >> /tmp/raft-small-files-mod.txt
+echo "shutdown" >> /tmp/raft-small-files-mod.txt
+echo "mappings" >> /tmp/raft-small-files-mod.txt
+echo "env" >> /tmp/raft-small-files-mod.txt
+echo "restart" >> /tmp/raft-small-files-mod.txt
+echo "heapdump" >> /tmp/raft-small-files-mod.txt
+echo "sessions" >> /tmp/raft-small-files-mod.txt
+echo "actuator/health" >> /tmp/raft-small-files-mod.txt
+echo "actuator/dump" >> /tmp/raft-small-files-mod.txt
+echo "actuator/trace" >> /tmp/raft-small-files-mod.txt
+echo "actuator/logfile" >> /tmp/raft-small-files-mod.txt
+echo "actuator/beans" >> /tmp/raft-small-files-mod.txt
+echo "actuator/shutdown" >> /tmp/raft-small-files-mod.txt
+echo "actuator/mappings" >> /tmp/raft-small-files-mod.txt
+echo "actuator/env" >> /tmp/raft-small-files-mod.txt
+echo "actuator/restart" >> /tmp/raft-small-files-mod.txt
+echo "actuator/heapdump" >> /tmp/raft-small-files-mod.txt
+echo "actuator/sessions" >> /tmp/raft-small-files-mod.txt
+#
 sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt | uniq -i >> /tmp/raft-small-files-mod.txt
 
 echo -e "Starting step 3 - small"
