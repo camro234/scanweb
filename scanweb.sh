@@ -322,6 +322,9 @@ echo "env" >> /tmp/raft-small-files-mod.txt
 echo "restart" >> /tmp/raft-small-files-mod.txt
 echo "heapdump" >> /tmp/raft-small-files-mod.txt
 echo "sessions" >> /tmp/raft-small-files-mod.txt
+echo "jolokia" >> /tmp/raft-small-files-mod.txt
+echo "jolokia/list" >> /tmp/raft-small-files-mod.txt
+echo "refresh" >> /tmp/raft-small-files-mod.txt
 echo "actuator/health" >> /tmp/raft-small-files-mod.txt
 echo "actuator/dump" >> /tmp/raft-small-files-mod.txt
 echo "actuator/trace" >> /tmp/raft-small-files-mod.txt
@@ -333,6 +336,9 @@ echo "actuator/env" >> /tmp/raft-small-files-mod.txt
 echo "actuator/restart" >> /tmp/raft-small-files-mod.txt
 echo "actuator/heapdump" >> /tmp/raft-small-files-mod.txt
 echo "actuator/sessions" >> /tmp/raft-small-files-mod.txt
+echo "actuator/jolokia" >> /tmp/raft-small-files-mod.txt
+echo "actuator/jolokia/list" >> /tmp/raft-small-files-mod.txt
+echo "actuator/refresh" >> /tmp/raft-small-files-mod.txt
 #
 sort -f $CUSTOMSECLISTSPATH/Discovery/Web-Content/raft-small-files.txt | uniq -i >> /tmp/raft-small-files-mod.txt
 
