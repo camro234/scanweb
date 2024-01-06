@@ -21,7 +21,7 @@ while [ $# -gt 0 ]; do
     declare $param="$2" 2>/dev/null
   fi
 
-  if [ $param != "i" ] && [ $param != "-host" ] && [ $param != "-usehost" ] && [ $param != "e" ] && [ $param != "-usehttps" ] && [ $param != "t" ] && [ $param != "-outdir" ] && [ $param != "d" ] && [ $param != "-customsecpath" ] && [ $param != "-port" ] && [ $param != "-proxyurl" ] && [ $param != "-replayproxyurl" ] && [ $param != "fw" ]; then
+  if [ $param != "i" ] && [ $param != "-host" ] && [ $param != "-usehost" ] && [ $param != "e" ] && [ $param != "-usehttps" ] && [ $param != "t" ] && [ $param != "-outdir" ] && [ $param != "d" ] && [ $param != "-customsecpath" ] && [ $param != "-port" ] && [ $param != "-proxyurl" ] && [ $param != "-replayproxyurl" ] && [ $param != "fw" ] && [ $param != "-usewfuzz" ] && [ $param != "-removeforvhostscan" ]; then
     SHOWUSAGE="y"
     echo -e "ERROR: Invalid parameter $param"
   fi 
@@ -55,6 +55,8 @@ PROXY=$proxyurl
 REPLAYPROXY=$replayproxyurl
 MACHINENAMEDIR=$(echo "$HOSTNAME" | cut -d "." -f 1)
 VHOSTNAME=$host
+USEWFUZZ=$usewfuzz
+REMOVEFORVHOSTSCANNING=$removeforvhostscan
 
 if [[ -z $IP || -z $HOSTNAME || -z $USEHOSTNAME || -z $EXTENSIONS || -z $ISHTTPS || -z $THREADS || -z $OUTPUTDIR || $SHOWUSAGE = "y" ]]; then
 	echo -e "usage:\n\t$0 -i <ip-address> --host <hostname> --usehost <use-hostname-instead-of-ip> -e <file-extensions> --usehttps <is-https> -t <num-threads> -fw <comma-seperated-wordcount-to-filter-out> --outdir <output-file-dir> [-d <sub-dir>] [--customsecpath <custom-seclists-path>] [--port <custom-port>] [--proxyurl <proxy-url> (For example: http://127.0.0.1:8080 or socks5://127.0.0.1:8080)] [--replayproxyurl <replay-proxy-url>]"
@@ -71,14 +73,13 @@ if [ ! -f "$CUSTOMSECLISTSPATH/Discovery/Web-Content/directory-list-2.3-medium.t
   exit 1
 fi
 
+if [[ -z $REMOVEFORVHOSTSCANNING ]]; then
+  REMOVEFORVHOSTSCANNING=""
+fi
+
 # value=`cat $IP_FILE`
 # IP=$value
 USESUBDIR="y"
-
-FFUFFILTER="-fw $fw"
-if [[ -z $fw ]]; then
-  FFUFFILTER=""
-fi
 
 IPONLY=$IP
 PORTONLY=$PORT
@@ -89,6 +90,18 @@ fi
 if [[ -z $SUBDIR ]]; then
   SUBDIR=""
   USESUBDIR="n"
+fi
+
+if [[ -z $USEWFUZZ ]]; then
+  USEWFUZZ="n"
+fi
+
+FFUFFILTER="-fw $fw"
+if [ $USEWFUZZ = 'y' ]; then
+  FFUFFILTER="--hw $fw"
+fi
+if [[ -z $fw ]]; then
+  FFUFFILTER=""
 fi
 
 if [ $USEHOSTNAME = 'y' ]; then
@@ -148,6 +161,7 @@ else
   fi
 fi
 
+
 QUICK_CURL=$(curl $URL -k -I 2>/dev/null | grep HTTP | cut -d " " -f 2)
 if [ $QUICK_CURL = 302 2>/dev/null ]; then 
   # site moved, check redirect
@@ -163,20 +177,27 @@ if [ $QUICK_CURL = 302 2>/dev/null ]; then
 fi
 
 
-if [ $ISHTTPS = 'y' ]; then
-  URL="$URL -k"
-  ASHOSTNAMEURL="$ASHOSTNAMEURL -k"
-  VHOSTURL="$VHOSTURL -k"
-  MACHINENAMEURL="$MACHINENAMEURL -k"
-  ASHOSTNAMEMACHINENAMEURL="$ASHOSTNAMEMACHINENAMEURL -k"
+if [ $USEWFUZZ = 'n' ]; then
+  if [ $ISHTTPS = 'y' ]; then
+    URL="$URL -k"
+    ASHOSTNAMEURL="$ASHOSTNAMEURL -k"
+    VHOSTURL="$VHOSTURL -k"
+    MACHINENAMEURL="$MACHINENAMEURL -k"
+    ASHOSTNAMEMACHINENAMEURL="$ASHOSTNAMEMACHINENAMEURL -k"
+  fi
+fi
+
+PROXYCODE="-x"
+if [ $USEWFUZZ = 'y' ]; then
+  PROXYCODE="-p"
 fi
 
 if [ ! -z $PROXY ]; then
-  URL="$URL -x $PROXY"
-  ASHOSTNAMEURL="$ASHOSTNAMEURL -x $PROXY"
-  VHOSTURL="$VHOSTURL -x $PROXY"
-  MACHINENAMEURL="$MACHINENAMEURL -x $PROXY"
-  ASHOSTNAMEMACHINENAMEURL="$ASHOSTNAMEMACHINENAMEURL -x $PROXY"
+  URL="$URL $PROXYCODE $PROXY"
+  ASHOSTNAMEURL="$ASHOSTNAMEURL $PROXYCODE $PROXY"
+  VHOSTURL="$VHOSTURL $PROXYCODE $PROXY"
+  MACHINENAMEURL="$MACHINENAMEURL $PROXYCODE $PROXY"
+  ASHOSTNAMEMACHINENAMEURL="$ASHOSTNAMEMACHINENAMEURL $PROXYCODE $PROXY"
 fi
 
 if [ ! -z $REPLAYPROXY ]; then
@@ -199,33 +220,63 @@ fi
 HOSTNAME=$(echo "${HOSTNAME}" | sed 's/\//\./g')
 VHOSTNAME=$(echo "${VHOSTNAME}" | sed 's/\//\./g')
 
+FFUFAPP="cat /tmp/subdomains.txt | ffuf -ac -w - -ic"
+if [ $USEWFUZZ = 'y' ]; then
+  FFUFAPP="python3 -m wfuzz -v -z file,/tmp/subdomains.txt -Z -L --hc 403,400,520,XXX"
+fi
+
+OUTPUTCODE="-of md -o"
+OUTPUTPOSTFIX=""
+if [ $USEWFUZZ = 'y' ]; then
+  OUTPUTCODE="-f"
+  OUTPUTPOSTFIX=",csv"
+fi
+
+VHOSTFUZZDOMAIN=$VHOSTNAME
+if [ $REMOVEFORVHOSTSCANNING != '' ]; then
+  VHOSTFUZZDOMAIN=$(echo "$VHOSTFUZZDOMAIN" | sed "s/$REMOVEFORVHOSTSCANNING.//" | sed 's/  / /')
+fi
+
+VHOSTFUZZ="Host: FUZZ.${VHOSTFUZZDOMAIN}"
+if [ $USEWFUZZ = 'y' ]; then
+  VHOSTFUZZ="\"Host: FUZZ.${VHOSTFUZZDOMAIN}\""
+fi
+
+TIMEOUTCODE="-timeout"
+if [ $USEWFUZZ = 'y' ]; then
+  TIMEOUTCODE="--req-delay"
+fi
+
 if [ $USESUBDIR = 'n' ]; then
   # only do vhost when not searching by hostname for ffuf, i.e. only first iteration
   echo -e "Scanning for virtual hosts..."
-  cat $CUSTOMSECLISTSPATH/Discovery/DNS/subdomains-top1million-110000.txt > /tmp/subdomains_part1.txt
-  cat $CUSTOMSECLISTSPATH/Discovery/DNS/bitquark-subdomains-top100000.txt > /tmp/subdomains_part2.txt
 
-  while read -r line; do echo "preprod-$line" ; done < ~/src/SecLists/Discovery/Web-Content/raft-small-words.txt > /tmp/subdomains_part3.txt
-  while read -r line; do echo "dev-$line" ; done < ~/src/SecLists/Discovery/Web-Content/raft-small-words.txt >> /tmp/subdomains_part3.txt
-  while read -r line; do echo "test-$line" ; done < ~/src/SecLists/Discovery/Web-Content/raft-small-words.txt >> /tmp/subdomains_part3.txt
-  while read -r line; do echo "qa-$line" ; done < ~/src/SecLists/Discovery/Web-Content/raft-small-words.txt >> /tmp/subdomains_part3.txt
-
-  cat /tmp/subdomains_part1.txt > /tmp/subdomains_part4.txt
-  cat /tmp/subdomains_part2.txt >> /tmp/subdomains_part4.txt
-  cat /tmp/subdomains_part3.txt >> /tmp/subdomains_part4.txt
-  cat /tmp/subdomains_part4.txt | tr A-Z a-z | grep -v 'xn--' | grep -v 'gc.' | grep -v '_domainkey' | grep -v '__' | grep -v 'hallam' | grep -v '_n_' | grep -v '_mbp' | grep -v 'sb_' | grep -v 'sklep_' | sort -i | uniq -i > /tmp/subdomains.txt
-  cat /tmp/subdomains.txt | ffuf -H "Host: FUZZ.${VHOSTNAME}" -u $VHOSTURL -w - -t $THREADS -c -ac -o $OUTPUTDIR/ffuf_vhosts -of md -timeout 5 -ic $FFUFFILTER
-fi
-
-echo -e "Kick off Nikto scan in the background first, timeout after 10 mins, should have found anything interesting by then"
-if [ -z $PROXY ]; then
-  # can only do Nikto if no proxying is specified, cannot get the proxy config to work with Nikto unfortunately
-  NIKTOURL=$URLONITSOWN
-  if [ $ISHTTPS = 'y' ]; then
-    NIKTOURL="$URLONITSOWN -ssl"
+  if [ -e $CUSTOMSECLISTSPATH/Discovery/DNS/camro234-subdomains.txt ]; then
+    cp $CUSTOMSECLISTSPATH/Discovery/DNS/camro234-subdomains.txt /tmp/subdomains.txt
+  else
+    # cat $CUSTOMSECLISTSPATH/Discovery/DNS/subdomains-top1million-110000.txt > /tmp/subdomains_part1.txt
+    # cat $CUSTOMSECLISTSPATH/Discovery/DNS/bitquark-subdomains-top100000.txt > /tmp/subdomains_part2.txt
+    cat $CUSTOMSECLISTSPATH/Discovery/DNS/subdomains-top1million-5000.txt > /tmp/subdomains_part1.txt
+    cat $CUSTOMSECLISTSPATH/Discovery/DNS/deepmagic.com-prefixes-top500.txt > /tmp/subdomains_part2.txt
+    
+    touch /tmp/subdomains_part3.txt
+    # while read -r line; do echo "preprod-$line" ; done < ~/src/SecLists/Discovery/Web-Content/raft-small-words.txt > /tmp/subdomains_part3.txt
+    # while read -r line; do echo "dev-$line" ; done < ~/src/SecLists/Discovery/Web-Content/raft-small-words.txt >> /tmp/subdomains_part3.txt
+    # while read -r line; do echo "test-$line" ; done < ~/src/SecLists/Discovery/Web-Content/raft-small-words.txt >> /tmp/subdomains_part3.txt
+    # while read -r line; do echo "qa-$line" ; done < ~/src/SecLists/Discovery/Web-Content/raft-small-words.txt >> /tmp/subdomains_part3.txt
+    
+    cat /tmp/subdomains_part1.txt > /tmp/subdomains_part4.txt
+    cat /tmp/subdomains_part2.txt >> /tmp/subdomains_part4.txt
+    cat /tmp/subdomains_part3.txt >> /tmp/subdomains_part4.txt
+    cat /tmp/subdomains_part4.txt | tr A-Z a-z | grep -v 'xn--' | grep -v 'gc.' | grep -v '_domainkey' | grep -v '__' | grep -v 'hallam' | grep -v '_n_' | grep -v '_mbp' | grep -v 'sb_' | grep -v 'sklep_' | sort -i | uniq -i > /tmp/subdomains.txt
   fi
-  timeout 600 nikto -host $NIKTOURL -timeout 5 -Tuning 023578abc -o $OUTPUTDIR/niktolog.txt 2>/dev/null 1&>2 &
+
+  echo -e "Performing scan..."
+  # echo "$FFUFAPP -H $VHOSTFUZZ -u $VHOSTURL -t $THREADS -c $TIMEOUTCODE 5 $FFUFFILTER $OUTPUTCODE $OUTPUTDIR/ffuf_vhosts$OUTPUTPOSTFIX"
+  echo "$FFUFAPP -H $VHOSTFUZZ -u $VHOSTURL -t $THREADS -c $TIMEOUTCODE 5 $FFUFFILTER $OUTPUTCODE $OUTPUTDIR/ffuf_vhosts$OUTPUTPOSTFIX" | bash
 fi
+
+touch $OUTPUTDIR/niktolog.txt
 
 # Commenting out IIS scan as it never seeme to be useful and sometimes causes false positives
 # echo -e "Starting step 1 - IIS"
